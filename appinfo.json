@@ -1,0 +1,27 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "utopianmonk",
+    "longName": "DualTime(UK/INDIA)",
+    "projectType": "native",
+    "resources": {
+        "media": [
+            {
+                "file": "images/dt.png",
+                "menuIcon": true,
+                "name": "IMAGE_MENU_ICON",
+                "type": "png"
+            }
+        ]
+    },
+    "sdkVersion": "2",
+    "shortName": "DualTime",
+    "uuid": "2c876a93-96ce-4d95-945a-d59a548189f6",
+    "versionCode": 1,
+    "versionLabel": "0.1",
+    "watchapp": {
+        "watchface": true
+    }
+}
