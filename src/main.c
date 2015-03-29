@@ -40,7 +40,8 @@ static void update_time(){
   text_layer_set_text(s_date_layer, date_buffer);
   
   //dual time
-  time_seconds = time_seconds + 5 * 60 * 60 + 30 * 60; // +5:30 India time
+  //time_seconds = time_seconds + 5 * 60 * 60 + 30 * 60; // +5:30 India time 
+  time_seconds = time_seconds + 4 * 60 * 60 + 30 * 60; // +4:30 India time  (Day light saving)
   struct tm *dual_tick_time = localtime(&time_seconds);
   strftime(dual_time_buffer, sizeof(dual_time_buffer), time_format, dual_tick_time);
   text_layer_set_text(s_dual_time_layer, dual_time_buffer);
