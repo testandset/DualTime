@@ -1,9 +1,15 @@
 #include <pebble.h>
 
+#define KEY_LOCAL_TIMEZONE_OFFSET 0
+#define KEY_DUAL_TIMEZONE_OFFSET 1
+
 static Window *s_main_window;
 static TextLayer *s_time_layer, *s_date_layer, *s_day_layer, *s_dual_time_layer;
+static int local_timeZone_offset = 0 , dual_timeZone_offset = 0 ;
 
-
+/*
+ * Function to update time
+ */
 static void update_time(){
   
   //get tm structure
@@ -34,20 +40,23 @@ static void update_time(){
   strftime(date_buffer, sizeof(date_buffer), "%d/%m/%y", tick_time);
   
   // populate layers
-  //text_layer_set_text(s_dual_time_layer, dual_time_buffer);
   text_layer_set_text(s_time_layer, time_buffer);
   text_layer_set_text(s_day_layer, day_buffer);
   text_layer_set_text(s_date_layer, date_buffer);
   
-  //dual time
-  //time_seconds = time_seconds + 5 * 60 * 60 + 30 * 60; // +5:30 India time 
-  time_seconds = time_seconds + 4 * 60 * 60 + 30 * 60; // +4:30 India time  (Day light saving)
+  // dual time
+  time_seconds = time_seconds + dual_timeZone_offset - local_timeZone_offset;;
   struct tm *dual_tick_time = localtime(&time_seconds);
   strftime(dual_time_buffer, sizeof(dual_time_buffer), time_format, dual_tick_time);
   text_layer_set_text(s_dual_time_layer, dual_time_buffer);
   
 }
 
+
+/*
+ * Window load method.
+ * Called everytime watchface is selected on watch.
+ */
 static void main_window_load(Window *window){
   
   // create time TextLayer
@@ -85,6 +94,10 @@ static void main_window_load(Window *window){
   layer_add_child(window_get_root_layer(window), text_layer_get_layer(s_date_layer));
 }
 
+/*
+ * Window unload method.
+ * Called everytime watchface is unselected on watch.
+ */
 static void main_window_unload(Window *window){
   
   // destroy text layers
@@ -94,10 +107,73 @@ static void main_window_unload(Window *window){
   text_layer_destroy(s_date_layer);
 }
 
+/*
+ * Register mathod for time change. 
+ */
 static void tick_handler(struct tm *tick_time, TimeUnits units_change){
   update_time();
 }
 
+
+/*
+ * Method to get data from config page.
+ */
+static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
+  
+  // Read first item
+  Tuple *t = dict_read_first(iterator);
+
+  // For all items
+  while(t != NULL) {
+    // Which key was received?
+    switch(t->key) {
+    case KEY_LOCAL_TIMEZONE_OFFSET:
+      local_timeZone_offset =  t->value->int32;
+      persist_write_int(KEY_LOCAL_TIMEZONE_OFFSET, local_timeZone_offset);
+      break;
+    case KEY_DUAL_TIMEZONE_OFFSET:
+      dual_timeZone_offset = t->value->int32;
+      persist_write_int(KEY_DUAL_TIMEZONE_OFFSET, dual_timeZone_offset);
+      break;
+    default:
+      APP_LOG(APP_LOG_LEVEL_ERROR, "Key %d not recognized!", (int)t->key);
+      break;
+    }
+
+    // Look for next item
+    t = dict_read_next(iterator);
+  }
+  
+  // update clock with new timeZone
+  update_time();
+}
+
+
+/*
+ * Method when data from config page is dropped.
+ */
+static void inbox_dropped_callback(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
+}
+
+/*
+ * Method when sending message to phone failed
+ */
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+}
+
+/*
+ * Method when data from config page is send successfully.
+ */
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
+}
+
+
+/*
+ * Initialiser method for watch.
+ */
 static void init(){
   
   // create main window
@@ -110,23 +186,48 @@ static void init(){
     .unload = main_window_unload 
   });
   
-  // register with TickTimerService
+  // register with TickTimerService, registered every minute.
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   
   // show window on watch
   window_stack_push(s_main_window, true);
+  
+  // Register callbacks
+  app_message_register_inbox_received(inbox_received_callback);
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_outbox_sent(outbox_sent_callback);
+  
+  // Open AppMessage
+  app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+  
+  //get persisted local time zone value
+  if(persist_exists(KEY_LOCAL_TIMEZONE_OFFSET)){
+    local_timeZone_offset = persist_read_int(KEY_LOCAL_TIMEZONE_OFFSET);
+  }
+  
+  // get persisted dual time zone value
+  if(persist_exists(KEY_DUAL_TIMEZONE_OFFSET)){
+    dual_timeZone_offset = persist_read_int(KEY_DUAL_TIMEZONE_OFFSET);
+  }
   
   //update time
   update_time();
   
 }
 
+/*
+ * Destroyer.
+ */
 static void deinit(){
   // destroy window
   window_destroy(s_main_window);
 }
 
 
+/*
+ * main method, here it all begins.
+ */
 int main(void){
   init();
   app_event_loop();
